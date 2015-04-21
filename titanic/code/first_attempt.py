@@ -10,7 +10,14 @@ import IPython as ipy
 import pandas as pd
 import numpy as np
 import csv as csv
+import os as os
 from sklearn.ensemble import RandomForestClassifier
+
+# Helper functions
+def ensure_dir(f):
+    d = os.path.dirname(f)
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 # Data cleanup
 #   Convert all strings to integer classifiers.
@@ -69,7 +76,9 @@ print 'Predicting...'
 output = forest.predict(test_data).astype(int)
 
 
-predictions_file = open("../prediction/myfirstforest.csv", "wb")
+prediction_filepath = "../prediction/myfirstforest.csv"
+ensure_dir(prediction_filepath)
+predictions_file = open(prediction_filepath, "wb")
 open_file_object = csv.writer(predictions_file)
 open_file_object.writerow(["PassengerId","Survived"])
 open_file_object.writerows(zip(ids, output))
