@@ -51,6 +51,15 @@ def clean_data(data):
         for f in range(0,3): # loop 0 to 2
             data.loc[ (data.Fare.isnull()) & (data.Pclass == f+1 ), 'Fare'] = median_fare[f]
 
+    # Add colums for titles 
+    data['Clergy'] = data.Name.map(lambda x: 'Rev.' in x).astype(int)
+    data['Military'] = data.Name.map(lambda x: 'Col.' in x or 'Major' in x).astype(int)
+    data['Nobility'] = data.Name.map(lambda x: 'Count' in x).astype(int)
+    data['Mr.'] = data.Name.map(lambda x: 'Mr.' in x).astype(int)
+    data['Mrs.'] = data.Name.map(lambda x: 'Mrs.' in x).astype(int)
+    data['Miss'] = data.Name.map(lambda x: 'Miss' in x).astype(int)
+    data['Master'] = data.Name.map(lambda x: 'Master' in x).astype(int)
+
     # Remove the non-numeric colums
     data = data.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId', 'Embarked'], axis=1) 
 
