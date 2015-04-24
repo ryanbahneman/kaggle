@@ -9,149 +9,193 @@ Revised : 22 April 2015
 import IPython as ipy
 import pandas as pd
 import numpy as np
-import csv as csv
-import os as os
+import csv
+import os
+import sys
 import pylab as P
 from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
 
 
 
-def extract_composite_data(data):
+
+
+def split_data(infile, outfile, overwrite=False):
+
+    ### Skip splitting if the file exists ###
+    if (not overwrite) and os.path.isfile(outfile):
+        print "Split file alread exists. Skipping step..."
+        return
+
+    ### Load the data ###
+    print 'Loading data...'
+    csv_file_object = csv.reader(open(infile, 'rb')) 
+
+    header = csv_file_object.next()  
+
+    data=[]                          
+    for row in csv_file_object:      
+        data.append(row)             
+    data_len = len(data)
+    
+
+    ### Split the data ###
+    print 'Splitting the data...'
+
+    # Get the indices where there are multiple entries
+    # Note: this only works if the first row contains more than one sample
+    #       and all rows need to be split in the s
+    multi_entry_idxs = []
+    for i, data_entry in enumerate(data[0]):
+        if len(data_entry.split(" ")) > 1:
+            multi_entry_idxs.append(i)
+
+    # Build a new set of rows for every old row
+    new_data = []
+    new_data.append(header)
+    for i, raw_samples in enumerate(data):
+
+        # Split the multi entry elements
+        for c_idx in multi_entry_idxs:
+            raw_samples[c_idx] = raw_samples[c_idx].split(" ")
+
+        # The number of entries in this sample
+        sample_count = len(raw_samples[multi_entry_idxs[0]])
+
+        # Create a new sample for each entry in the raw sample
+        for j in xrange(sample_count):
+            new_samples = []
+            # If the element was not multi entry copy the element
+            # Else copy the j-th entry of the element
+            for k in xrange(len(raw_samples)):
+                if not k in multi_entry_idxs:
+                    new_samples.append(raw_samples[k])
+                else:
+                    new_samples.append(raw_samples[k][j])
+
+            # Add the new sample to new dataset
+            new_data.append(new_samples)
+
+        # Progress tracker
+        if i % 1000 == 0:
+            print("Completed row %d of %d" % (i, data_len))
+
+    ### Write the data ###
+    print 'Writing the data...'
+
+    f = open(outfile, "w")
+    csv_writer = csv.writer(f)
+    csv_writer.writerows(new_data)
+    f.close()
+
+# Data cleanup
+def clean_data(data):
     if type(data) == float:
         result = [data]
-        print(data)
     else:
         result = data.split(' ')
     return np.array(result).astype(np.float)
-
-# Data cleanup
-#   Convert all strings to integer classifiers.
-#   Fill in the missing values of the data and make it complete.
-def clean_data(data):
-
-    new_data = pd.DataFrame()
-
-    for i, raw_sample in data.iterrows():
-
-        radar_dists = extract_composite_data(raw_sample.DistanceToRadar)
-        max_reflectivities = extract_composite_data(raw_sample.Composite)
-        hybrid_scans = extract_composite_data(raw_sample.HybridScan)
-        hydrometeor_types = extract_composite_data(raw_sample.HydrometeorType)
-        kdps = extract_composite_data(raw_sample.Kdp)
-        log_water_volumes = extract_composite_data(raw_sample.LogWaterVolume)
-        mass_weighted_means = extract_composite_data(raw_sample.MassWeightedMean)
-        mass_weighted_sd = extract_composite_data(raw_sample.MassWeightedSD)
-        rr1s = extract_composite_data(raw_sample.RR1)
-        rr2s = extract_composite_data(raw_sample.RR2)
-        rr3s = extract_composite_data(raw_sample.RR3)
-        radar_quality_indices = extract_composite_data(raw_sample.RadarQualityIndex)
-        reflectivities = extract_composite_data(raw_sample.Reflectivity)
-        reflectivity_qcs = extract_composite_data(raw_sample.ReflectivityQC)
-        rho_hvs = extract_composite_data(raw_sample.RhoHV)
-        time_to_ends = extract_composite_data(raw_sample.TimeToEnd)
-        velocities = extract_composite_data(raw_sample.Velocity)
-        zdrs = extract_composite_data(raw_sample.Zdr)
-
-        raw_sample = raw_sample.drop(['HydrometeorType']) 
-        for j in xrange(len(radar_dists)):
-            new_raw_sample = raw_sample.copy()
-
-            new_raw_sample.Composite = max_reflectivities[j]
-            new_raw_sample.DistanceToRadar = radar_dists[j]
-            new_raw_sample.RR1 = rr1s[j]
-            new_raw_sample.RR2 = rr2s[j]
-            new_raw_sample.RR3 = rr3s[j]
-            new_raw_sample.Kdp = kdps[j]
-            new_raw_sample.HybridScan = hybrid_scans[j]
-            new_raw_sample.RadarQualityIndex = radar_quality_indices[j]
-            new_raw_sample.Reflectivity = reflectivities[j]
-            new_raw_sample.ReflectivityQC = reflectivity_qcs[j]
-            new_raw_sample.LogWaterVolume = log_water_volumes[j]
-            new_raw_sample.MassWeightedMean = mass_weighted_means[j]
-            new_raw_sample.MassWeightedSD = mass_weighted_sd[j]
-            new_raw_sample.Zdr = zdrs[j]
-            new_raw_sample.RhoHV = rho_hvs[j]
-            new_raw_sample.Velocity = velocities[j]
-            new_raw_sample.TimeToEnd = time_to_ends[j]
-
-
-            new_data = new_data.append(new_raw_sample)
-
-
-        if i == 10:
-            break
-
-    ipy.embed()
-
-
-
-    # Remove the non-numeric colums
-    #data = data.drop(['Name', 'Sex', 'Ticket', 'Cabin', 'PassengerId', 'Embarked'], axis=1) 
+    
+        #composite_datatypes = ["DistanceToRadar", "Composite", "HybridScan", "HydrometeorType", "Kdp", "LogWaterVolume", "MassWeightedMean", "MassWeightedSD", "RR1", "RR2", "RR3", "RadarQualityIndex", "Reflectivity", "ReflectivityQC", "RhoHV", "TimeToEnd", "Velocity", "Zdr", "HydrometeorType"]
 
     return data
-"""
-    # female = 0, Male = 1
-    data['Gender'] = data['Sex'].map( {'female': 0, 'male': 1} ).astype(int)
 
-    # Embarked from 'C', 'Q', 'S'
-    for port in ['C', 'Q', 'S']:
-        data['Embarked_%s'%port] = data['Embarked'].map(lambda x: x == port).astype(int)
 
-    # All missing Embarked -> just make them embark from most common place
-    if len(data.Embarked[ data.Embarked.isnull() ]) > 0:
-        most_common_port = data.Embarked.dropna().mode().values[0]
-        data.loc[data.Embarked.isnull(), 'Embarked_%s' % most_common_port] = 1
+### Split The Data ###
+raw_training_data = '../data/train_2013.csv'
+split_training_data = '../data/train_split.csv'
+print 'Splitting training data'
+split_data(raw_training_data, split_training_data)
 
-    # All the ages with no data -> make the median of all Ages in that ticket class
-    ticket_classes = np.unique(data.Pclass.values)
-    median_ages = dict()
-    for ticket_class in ticket_classes:
-        median_for_class = data[data.Pclass == ticket_class].dropna().Age.median()
-        median_ages[ticket_class] = median_for_class
-
-    for ticket_class in ticket_classes:
-        if len(data.Age[ data.Age.isnull() & (data.Pclass == ticket_class)]) > 0:
-            data.loc[ (data.Age.isnull() & (data.Pclass == ticket_class)), 'Age'] \
-                    = median_ages[ticket_class]
-
-    # All the missing Fares -> assume median of their respective class
-    if len(data.Fare[ data.Fare.isnull() ]) > 0:
-        median_fare = np.zeros(3)
-        for f in range(0,3): # loop 0 to 2
-            median_fare[f] = data[ data.Pclass == f+1 ]['Fare'].dropna().median()
-        for f in range(0,3): # loop 0 to 2
-            data.loc[ (data.Fare.isnull()) & (data.Pclass == f+1 ), 'Fare'] = median_fare[f]
-
-    # Add colums for titles 
-    data['Clergy'] = data.Name.map(lambda x: 'Rev.' in x).astype(int)
-    data['Military'] = data.Name.map(lambda x: 'Col.' in x or 'Major' in x).astype(int)
-    data['Nobility'] = data.Name.map(lambda x: 'Count' in x).astype(int)
-    data['Mr.'] = data.Name.map(lambda x: 'Mr.' in x).astype(int)
-    data['Mrs.'] = data.Name.map(lambda x: 'Mrs.' in x).astype(int)
-    data['Miss'] = data.Name.map(lambda x: 'Miss' in x).astype(int)
-    data['Master'] = data.Name.map(lambda x: 'Master' in x).astype(int)
-
-    """
+raw_test_data = '../data/test_2014.csv'
+split_test_data = '../data/test_split.csv'
+print 'Splitting test data'
+split_data(raw_test_data, split_test_data)
 
 
 # TRAIN DATA
 print 'Loading training data...'
-train_df = pd.read_csv('../data/train_2013.csv', header=0) 
+train_df = pd.read_csv(split_training_data, header=0)
+
 
 print 'Cleaning the training data...'
 # Drop the readings that are unreasonably large
 max_valid_reading = 69
 train_df = train_df[train_df.Expected <= max_valid_reading]
 
+# Reset the indexing
+train_df = train_df.reset_index()
+
+# Set the missing values to 0
+train_df.MassWeightedMean = train_df.MassWeightedMean.replace(np.nan, 0)
+train_df.MassWeightedSD = train_df.MassWeightedSD.replace(np.nan, 0)
+
+train_df.RR1 = train_df.RR1.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+train_df.RR2 = train_df.RR2.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+train_df.RR3 = train_df.RR3.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+
+# Create a radar best guess estiamte colum
+train_df["RRR"] = train_df.RR1.copy()
+r2_but_not_r1 = train_df.RR1.isnull() & train_df.RR2.notnull()
+train_df.loc[r2_but_not_r1, "RRR"] = train_df.RR2[r2_but_not_r1]
+r3_but_not_r2_or_r1 = (train_df.RR1.isnull() & 
+                       train_df.RR2.isnull() &
+                       train_df.RR3.notnull() )
+train_df.loc[r3_but_not_r2_or_r1, "RRR"] = train_df.RR3[r3_but_not_r2_or_r1]
+
+# Drop the colums that don't have a radar estimate
+train_df = train_df[train_df.RRR.notnull()]
+# Reset the indexing
+train_df = train_df.reset_index()
+
+exptected = train_df.Expected.values
+train_ids = train_df.Id.values
+
+# Keeping 'DistanceToRadar', 'RRR', 'MassWeighteMean', 'MassWeightedSD'
+train_df = train_df.drop(['TimeToEnd', 'level_0', 'index', 'Id', 'Composite', 'HybridScan', 'HydrometeorType', 'Kdp', 'RR1','RR2', 'RR3', 'Reflectivity', 'ReflectivityQC', 'RhoHV', 'Velocity', 'Zdr', 'LogWaterVolume', 'Expected', 'RadarQualityIndex'], axis=1) 
+
+train_data = train_df.values
+
+print 'Training...'
+forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
+forest = forest.fit( train_data, exptected)
+
+ipy.embed()
+sys.exit(0)
+
+
+
+
+
+
+print 'Predicting...'
+output = forest.predict(test_data).astype(int)
+
+
+
+
+
+ipy.embed()
+sys.exit(0)
+
+
+ipy.embed()
+
+sys.exit(0)
+
+
+
+
 train_data = clean_data(train_df)
 
 
+# TEST DATA
+test_df = pd.read_csv(split_test_data, header=0)
 
 #Clean and normailze the data (don't normalize the first colum)
 #train_data = clean_data(train_df)
 #norm_train_data, norm_mins, norm_maxs = normalize(train_data[:,1:])
 
-# TEST DATA
 #test_df = pd.read_csv('../data/test.csv', header=0)
 
 # Collect the test data's PassengerIds before dropping it
