@@ -90,13 +90,27 @@ def split_data(infile, outfile, overwrite=False):
 
 # Data cleanup
 def clean_data(data):
-    if type(data) == float:
-        result = [data]
-    else:
-        result = data.split(' ')
-    return np.array(result).astype(np.float)
-    
-        #composite_datatypes = ["DistanceToRadar", "Composite", "HybridScan", "HydrometeorType", "Kdp", "LogWaterVolume", "MassWeightedMean", "MassWeightedSD", "RR1", "RR2", "RR3", "RadarQualityIndex", "Reflectivity", "ReflectivityQC", "RhoHV", "TimeToEnd", "Velocity", "Zdr", "HydrometeorType"]
+    # Set the missing values to 0
+    data.MassWeightedMean = data.MassWeightedMean.replace(np.nan, 0)
+    data.MassWeightedSD = data.MassWeightedSD.replace(np.nan, 0)
+
+    data.RR1 = data.RR1.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+    data.RR2 = data.RR2.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+    data.RR3 = data.RR3.replace(["-99900", "-99901", "-99903", "999"], np.nan)
+
+    # Create a radar best guess estiamte colum
+    data["RRR"] = data.RR1.copy()
+    r2_but_not_r1 = data.RR1.isnull() & data.RR2.notnull()
+    data.loc[r2_but_not_r1, "RRR"] = data.RR2[r2_but_not_r1]
+    r3_but_not_r2_or_r1 = (data.RR1.isnull() & 
+                           data.RR2.isnull() &
+                           data.RR3.notnull() )
+    data.loc[r3_but_not_r2_or_r1, "RRR"] = data.RR3[r3_but_not_r2_or_r1]
+
+    # Drop the colums that don't have a radar estimate
+    data = data.loc[data.RRR.notnull()]
+    # Reset the indexing
+    data = data.reset_index(drop=True)
 
     return data
 
@@ -117,70 +131,117 @@ split_data(raw_test_data, split_test_data)
 print 'Loading training data...'
 train_df = pd.read_csv(split_training_data, header=0)
 
-
 print 'Cleaning the training data...'
 # Drop the readings that are unreasonably large
 max_valid_reading = 69
-train_df = train_df[train_df.Expected <= max_valid_reading]
-
+train_df = train_df.loc[train_df.Expected <= max_valid_reading]
 # Reset the indexing
-train_df = train_df.reset_index()
+train_df = train_df.reset_index(drop=True)
 
-# Set the missing values to 0
-train_df.MassWeightedMean = train_df.MassWeightedMean.replace(np.nan, 0)
-train_df.MassWeightedSD = train_df.MassWeightedSD.replace(np.nan, 0)
-
-train_df.RR1 = train_df.RR1.replace(["-99900", "-99901", "-99903", "999"], np.nan)
-train_df.RR2 = train_df.RR2.replace(["-99900", "-99901", "-99903", "999"], np.nan)
-train_df.RR3 = train_df.RR3.replace(["-99900", "-99901", "-99903", "999"], np.nan)
-
-# Create a radar best guess estiamte colum
-train_df["RRR"] = train_df.RR1.copy()
-r2_but_not_r1 = train_df.RR1.isnull() & train_df.RR2.notnull()
-train_df.loc[r2_but_not_r1, "RRR"] = train_df.RR2[r2_but_not_r1]
-r3_but_not_r2_or_r1 = (train_df.RR1.isnull() & 
-                       train_df.RR2.isnull() &
-                       train_df.RR3.notnull() )
-train_df.loc[r3_but_not_r2_or_r1, "RRR"] = train_df.RR3[r3_but_not_r2_or_r1]
-
-# Drop the colums that don't have a radar estimate
-train_df = train_df[train_df.RRR.notnull()]
-# Reset the indexing
-train_df = train_df.reset_index()
+# Clean the data
+train_df = clean_data(train_df)
 
 exptected = train_df.Expected.values
+it_rained = np.array(map(lambda x: x > 0, exptected))
 train_ids = train_df.Id.values
 
+
+# When it did rain
+rain_train_df = train_df.loc[train_df.Expected > 0]
+rain_data = rain_train_df.Expected.values
+
+# Calculate the percent of rain
+rain_percent = []
+rain_samples = len(rain_data)
+for i in xrange(70):
+    samples_in_bin = map(lambda x: x < (i+1), rain_data)
+    rain_percent.append(np.array(samples_in_bin).astype(np.int).sum())
+rain_percent = np.array(rain_percent) / (1.0 * rain_samples)
+
 # Keeping 'DistanceToRadar', 'RRR', 'MassWeighteMean', 'MassWeightedSD'
-train_df = train_df.drop(['TimeToEnd', 'level_0', 'index', 'Id', 'Composite', 'HybridScan', 'HydrometeorType', 'Kdp', 'RR1','RR2', 'RR3', 'Reflectivity', 'ReflectivityQC', 'RhoHV', 'Velocity', 'Zdr', 'LogWaterVolume', 'Expected', 'RadarQualityIndex'], axis=1) 
+train_df = train_df.drop(['TimeToEnd', 'Id', 'Composite', 'HybridScan', 'HydrometeorType', 'Kdp', 'RR1','RR2', 'RR3', 'Reflectivity', 'ReflectivityQC', 'RhoHV', 'Velocity', 'Zdr', 'LogWaterVolume', 'Expected', 'RadarQualityIndex'], axis=1) 
 
 train_data = train_df.values
 
 print 'Training...'
-forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
-forest = forest.fit( train_data, exptected)
-
-ipy.embed()
-sys.exit(0)
+forest = RandomForestClassifier(n_estimators=10, n_jobs=7)
+#forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
+forest = forest.fit( train_data, it_rained)
 
 
+# TEST DATA
+print 'Loading test data...'
+test_df = pd.read_csv(split_test_data, header=0)
 
 
+print 'Getting unique ids...'
+unique_test_ids = test_df.Id.values.astype(np.int)
+unique_test_ids = np.unique(unique_test_ids)
 
+test_id_idxs = dict()
+for i, test_id in enumerate(unique_test_ids):
+    test_id_idxs[test_id] = i
+
+print 'Cleaning test data...'
+test_df = clean_data(test_df)
+test_ids = test_df.Id.values
+
+
+# Keeping 'DistanceToRadar', 'RRR', 'MassWeighteMean', 'MassWeightedSD'
+test_df = test_df.drop(['TimeToEnd', 'Id', 'Composite', 'HybridScan', 'HydrometeorType', 'Kdp', 'RR1','RR2', 'RR3', 'Reflectivity', 'ReflectivityQC', 'RhoHV', 'Velocity', 'Zdr', 'LogWaterVolume', 'RadarQualityIndex'], axis=1) 
+
+test_data = test_df.values
 
 print 'Predicting...'
 output = forest.predict(test_data).astype(int)
 
+print 'Counting predictions...'
+prediction_count_for_id = np.zeros(unique_test_ids.shape).astype(np.float)
+predictions_at_id = np.zeros(unique_test_ids.shape).astype(np.float)
+for i, test_id in enumerate(test_ids): 
+    idx = test_id_idxs[test_id]
 
+    prediction_count_for_id[idx] += 1
+    predictions_at_id[idx] += output[i]
 
+print 'Averaging predictions...'
+prediction_count_for_id = map(lambda x: max(x,1.0), prediction_count_for_id)
+average_predictions = predictions_at_id / prediction_count_for_id;
 
+print 'Building prediction output...'
+all_predictions = []
+for avg_pre in average_predictions:
+    if avg_pre < 0.5:
+        #assume no rain
+        predicion = [1]*70
+    else:
+        predicion = rain_percent
 
+    all_predictions.append(predicion)
+
+# re insert the id column
+for i, test_id in enumerate(unique_test_ids):
+    predictions_for_test_id = all_predictions[i]
+    all_predictions[i] = [test_id]
+    all_predictions[i].extend(predictions_for_test_id)
+
+header = ["Id"]
+for i in xrange(70):
+    header.append("Predicted%d" % i)
+
+all_predictions.insert(0, header)
+
+prediction_filepath = "../prediction/first.csv"
+prediction_dir = os.path.dirname(prediction_filepath)
+if not os.path.exists(prediction_dir):
+    os.makedirs(prediction_dir)
+predictions_file = open(prediction_filepath, "wb")
+open_file_object = csv.writer(predictions_file)
+open_file_object.writerows(all_predictions)
+predictions_file.close()
+
+print 'Done.'
 ipy.embed()
-sys.exit(0)
-
-
-ipy.embed()
-
 sys.exit(0)
 
 
@@ -189,8 +250,6 @@ sys.exit(0)
 train_data = clean_data(train_df)
 
 
-# TEST DATA
-test_df = pd.read_csv(split_test_data, header=0)
 
 #Clean and normailze the data (don't normalize the first colum)
 #train_data = clean_data(train_df)
