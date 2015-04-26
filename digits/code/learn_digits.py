@@ -5,6 +5,7 @@ import numpy as np
 import IPython as ipy
 from PIL import Image
 
+np.set_printoptions(threshold='nan')
 
 training_data_path = "../data/train.csv"
 
