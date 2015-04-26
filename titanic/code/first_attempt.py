@@ -93,7 +93,7 @@ print 'Predicting...'
 output = forest.predict(test_data).astype(int)
 
 
-prediction_filepath = "../prediction/myfirstforest.csv"
+prediction_filepath = "%s/prediction/myfirstforest.csv" % os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 prediction_dir = os.path.dirname(prediction_filepath)
 if not os.path.exists(prediction_dir):
     os.makedirs(prediction_dir)
@@ -103,3 +103,4 @@ open_file_object.writerow(["PassengerId","Survived"])
 open_file_object.writerows(zip(ids, output))
 predictions_file.close()
 print 'Done.'
+print 'Output file stored at %s' % prediction_filepath
