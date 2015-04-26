@@ -1,3 +1,4 @@
 .idea/workspace.xml
 digits/data/test.csv
 digits/data/train.csv
+*/data/*.csv
