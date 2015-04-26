@@ -79,7 +79,6 @@ ids = test_df['PassengerId'].values
 
 test_data = clean_data(test_df)
 
-
 print 'Training...'
 forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
 forest = forest.fit( train_data[0::,1::], train_data[0::,0] )
