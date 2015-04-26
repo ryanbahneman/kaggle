@@ -69,38 +69,38 @@ def clean_data(data):
 ######################################################################################
 ######################################################################################
 #MAIN SCRIPT STARTS HERE
+if __name__ == "__main__":
+
+    # TRAIN DATA
+    train_df = pd.read_csv('../data/train.csv', header=0)        # Load the train file into a dataframe
+
+    train_data = clean_data(train_df)
 
 
-# TRAIN DATA
-train_df = pd.read_csv('../data/train.csv', header=0)        # Load the train file into a dataframe
+    # TEST DATA
+    test_df = pd.read_csv('../data/test.csv', header=0)        # Load the test file into a dataframe
 
-train_data = clean_data(train_df)
+    # Collect the test data's PassengerIds before dropping it
+    ids = test_df['PassengerId'].values
 
+    test_data = clean_data(test_df)
 
-# TEST DATA
-test_df = pd.read_csv('../data/test.csv', header=0)        # Load the test file into a dataframe
+    print 'Training...'
+    forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
+    forest = forest.fit( train_data[0::,1::], train_data[0::,0] )
 
-# Collect the test data's PassengerIds before dropping it
-ids = test_df['PassengerId'].values
-
-test_data = clean_data(test_df)
-
-print 'Training...'
-forest = RandomForestClassifier(n_estimators=1000, n_jobs=-1)
-forest = forest.fit( train_data[0::,1::], train_data[0::,0] )
-
-print 'Predicting...'
-output = forest.predict(test_data).astype(int)
+    print 'Predicting...'
+    output = forest.predict(test_data).astype(int)
 
 
-prediction_filepath = "%s/prediction/myfirstforest.csv" % os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-prediction_dir = os.path.dirname(prediction_filepath)
-if not os.path.exists(prediction_dir):
-    os.makedirs(prediction_dir)
-predictions_file = open(prediction_filepath, "wb")
-open_file_object = csv.writer(predictions_file)
-open_file_object.writerow(["PassengerId","Survived"])
-open_file_object.writerows(zip(ids, output))
-predictions_file.close()
-print 'Done.'
-print 'Output file stored at %s' % prediction_filepath
+    prediction_filepath = "%s/prediction/myfirstforest.csv" % os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    prediction_dir = os.path.dirname(prediction_filepath)
+    if not os.path.exists(prediction_dir):
+        os.makedirs(prediction_dir)
+    predictions_file = open(prediction_filepath, "wb")
+    open_file_object = csv.writer(predictions_file)
+    open_file_object.writerow(["PassengerId","Survived"])
+    open_file_object.writerows(zip(ids, output))
+    predictions_file.close()
+    print 'Done.'
+    print 'Output file stored at %s' % prediction_filepath

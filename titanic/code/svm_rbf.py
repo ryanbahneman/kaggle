@@ -75,37 +75,38 @@ def clean_data(data):
 
     return data.values
 
-# TRAIN DATA
-train_df = pd.read_csv('../data/train.csv', header=0) 
-#Clean and normailze the data (don't normalize the first colum)
-train_data = clean_data(train_df)
-norm_train_data, norm_mins, norm_maxs = normalize(train_data[:,1:])
+if __name__ == "__main__":
+    # TRAIN DATA
+    train_df = pd.read_csv('../data/train.csv', header=0)
+    #Clean and normailze the data (don't normalize the first colum)
+    train_data = clean_data(train_df)
+    norm_train_data, norm_mins, norm_maxs = normalize(train_data[:,1:])
 
-# TEST DATA
-test_df = pd.read_csv('../data/test.csv', header=0)
+    # TEST DATA
+    test_df = pd.read_csv('../data/test.csv', header=0)
 
-# Collect the test data's PassengerIds before dropping it
-ids = test_df['PassengerId'].values
+    # Collect the test data's PassengerIds before dropping it
+    ids = test_df['PassengerId'].values
 
-# Clean and normalize the data
-test_data = clean_data(test_df)
-norm_test_data = normalize(test_data, norm_mins, norm_maxs)[0]
+    # Clean and normalize the data
+    test_data = clean_data(test_df)
+    norm_test_data = normalize(test_data, norm_mins, norm_maxs)[0]
 
-print 'Training...'
-classifier = svm.SVC(kernel='rbf')
-classifier = classifier.fit( norm_train_data, train_data[0::,0] )
+    print 'Training...'
+    classifier = svm.SVC(kernel='rbf')
+    classifier = classifier.fit( norm_train_data, train_data[0::,0] )
 
-print 'Predicting...'
-output = classifier.predict(norm_test_data).astype(int)
+    print 'Predicting...'
+    output = classifier.predict(norm_test_data).astype(int)
 
 
-prediction_filepath = "../prediction/svm_rbf.csv"
-prediction_dir = os.path.dirname(prediction_filepath)
-if not os.path.exists(prediction_dir):
-    os.makedirs(prediction_dir)
-predictions_file = open(prediction_filepath, "wb")
-open_file_object = csv.writer(predictions_file)
-open_file_object.writerow(["PassengerId","Survived"])
-open_file_object.writerows(zip(ids, output))
-predictions_file.close()
-print 'Done.'
+    prediction_filepath = "../prediction/svm_rbf.csv"
+    prediction_dir = os.path.dirname(prediction_filepath)
+    if not os.path.exists(prediction_dir):
+        os.makedirs(prediction_dir)
+    predictions_file = open(prediction_filepath, "wb")
+    open_file_object = csv.writer(predictions_file)
+    open_file_object.writerow(["PassengerId","Survived"])
+    open_file_object.writerows(zip(ids, output))
+    predictions_file.close()
+    print 'Done.'
