@@ -4,6 +4,7 @@ import pandas as pd
 import IPython as ipy
 import PIL
 
+np.set_printoptions(threshold='nan')
 
 training_data_path = "../data/train.csv"
 
