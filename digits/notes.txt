@@ -1,0 +1,28 @@
+Logistic Regression 
+
+input
+N = 1,784 (28x28)
+
+output
+M = 1,10
+
+bias
+b = 1,10
+
+		Weights
+(1*N) * (N*M)+b -> softmax (sizeM)
+
+
+input* W + b = predict
+
+predict - y = error
+
+delta_error_given_d_w = change in error by playing with kwieghts
+delta_error_given_d_b = "
+
+w = w * learning_rate * delta _e
+
+
+y = human labeled output
+ex y = 		[0,      0,    1,    0,    0]
+ex output = [0.0002, 0.01, 0.98, 0.03, 0.02]
